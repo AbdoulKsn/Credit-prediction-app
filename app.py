@@ -51,6 +51,14 @@ st.markdown("""
     color: white;
 }
 
+.result-box {
+    padding:20px;
+    border-radius:15px;
+    text-align:center;
+    font-size:25px;
+    font-weight:bold;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -66,8 +74,9 @@ def charger_modele():
 
 try:
     model, scaler = charger_modele()
+
 except Exception as e:
-    st.error(f"Erreur de chargement du modèle : {e}")
+    st.error(f"Erreur lors du chargement du modèle : {e}")
     st.stop()
 
 # -------------------------------------------------------
@@ -80,7 +89,7 @@ st.markdown(
 )
 
 st.markdown(
-    '<p class="subtitle">Analyse bancaire basée sur IA + règles métier</p>',
+    '<p class="subtitle">Prédiction automatique de l\'éligibilité d\'un client grâce au Machine Learning</p>',
     unsafe_allow_html=True
 )
 
@@ -94,38 +103,72 @@ col1, col2 = st.columns(2)
 
 with col1:
 
-    st.subheader("👤 Informations personnelles")
+    st.subheader("👤 Informations Personnelles")
 
-    gender = st.selectbox("Sexe", [0, 1], format_func=lambda x: "Femme" if x == 0 else "Homme")
+    gender = st.selectbox(
+        "Sexe",
+        [0, 1],
+        format_func=lambda x: "Femme" if x == 0 else "Homme"
+    )
 
-    married = st.selectbox("Marié", [0, 1], format_func=lambda x: "Non" if x == 0 else "Oui")
+    married = st.selectbox(
+        "Statut Matrimonial",
+        [0, 1],
+        format_func=lambda x: "Non Marié" if x == 0 else "Marié"
+    )
 
-    dependents = st.selectbox("Personnes à charge", [0, 1, 2, 3])
+    dependents = st.selectbox(
+        "Nombre de personnes à charge",
+        [0, 1, 2, 3]
+    )
 
-    education = st.selectbox("Éducation", [0, 1], format_func=lambda x: "Diplômé" if x == 0 else "Non diplômé")
+    education = st.selectbox(
+        "Niveau d'étude",
+        [0, 1],
+        format_func=lambda x: "Diplômé" if x == 0 else "Non Diplômé"
+    )
 
-    self_employed = st.selectbox("Indépendant", [0, 1], format_func=lambda x: "Non" if x == 0 else "Oui")
+    self_employed = st.selectbox(
+        "Travailleur Indépendant",
+        [0, 1],
+        format_func=lambda x: "Non" if x == 0 else "Oui"
+    )
 
 with col2:
 
-    st.subheader("💰 Informations financières")
+    st.subheader("💰 Informations Financières")
 
-    total_income = st.number_input("Revenu total", min_value=0, value=5000)
+    total_income = st.number_input(
+        "Revenu Mensuel Total ($)",
+        min_value=0,
+        value=5000
+    )
 
-    loan_amount = st.number_input("Montant du prêt", min_value=0, value=150)
+    loan_amount = st.number_input(
+        "Montant du Prêt Demandé ($)",
+        min_value=0,
+        value=150
+    )
 
-    loan_term = st.number_input("Durée (mois)", min_value=1, value=360)
+    loan_term = st.number_input(
+        "Durée du Prêt (en mois)",
+        min_value=1,
+        value=360
+    )
 
     credit_history = st.selectbox(
-        "Historique de crédit",
+        "Historique de Crédit",
         [0, 1],
         format_func=lambda x: "Mauvais" if x == 0 else "Bon"
     )
 
     property_area = st.selectbox(
-        "Zone",
+        "Zone de Résidence",
         [0, 1, 2],
-        format_func=lambda x: "Rural" if x == 0 else "Semi-Urbain" if x == 1 else "Urbain"
+        format_func=lambda x:
+            "Rural" if x == 0
+            else "Semi-Urbain" if x == 1
+            else "Urbain"
     )
 
 st.markdown("---")
@@ -136,8 +179,8 @@ st.markdown("---")
 
 if st.button("🔍 Analyser le Dossier"):
 
-    # ---------------- DATA ----------------
     donnees = pd.DataFrame({
+
         'Gender': [gender],
         'Married': [married],
         'Dependents': [dependents],
@@ -148,79 +191,46 @@ if st.button("🔍 Analyser le Dossier"):
         'Credit_History': [credit_history],
         'Property_Area': [property_area],
         'Total_Income': [total_income]
+
     })
 
-    # ---------------- ML ----------------
+    # Normalisation
+
     donnees_scaled = scaler.transform(donnees)
 
+    # Prédiction
+
     prediction = model.predict(donnees_scaled)[0]
-    proba_ml = model.predict_proba(donnees_scaled)[0][1] * 100
 
-    # ---------------- RÈGLES BANCAIRES ----------------
-    risk_score = 0
+    # Probabilité
 
-    # mauvais historique = refus quasi automatique
-    if credit_history == 0:
-        risk_score += 50
+    proba = model.predict_proba(donnees_scaled)[0][1] * 100
 
-    # ratio prêt/revenu
-    ratio = loan_amount / (total_income + 1)
+    st.markdown("## 📊 Résultat de l'analyse")
 
-    if ratio > 0.5:
-        risk_score += 30
-    elif ratio > 0.3:
-        risk_score += 15
+    st.progress(int(proba))
 
-    # dépendants
-    if dependents == 3:
-        risk_score += 10
+    st.metric(
+        label="Probabilité d'acceptation",
+        value=f"{proba:.2f}%"
+    )
 
-    # indépendant
-    if self_employed == 1:
-        risk_score += 5
+    if prediction == 1:
 
-    # prêt trop élevé
-    if loan_amount > 10000:
-        risk_score += 10
+        st.success(
+            "✅ Crédit approuvé.\n\nLe profil du client présente un risque faible."
+        )
 
-    # ---------------- SCORE FINAL ----------------
-    final_score = (proba_ml * 0.6) + (risk_score * 0.4)
-
-    # ---------------- AFFICHAGE ----------------
-    st.markdown("## 📊 Résultat de l'analyse bancaire")
-
-    colA, colB, colC = st.columns(3)
-
-    with colA:
-        st.metric("Probabilité ML", f"{proba_ml:.2f}%")
-
-    with colB:
-        st.metric("Score risque", f"{risk_score}/100")
-
-    with colC:
-        st.metric("Score final", f"{final_score:.2f}")
-
-    st.progress(int(min(proba_ml, 100)))
-
-    st.markdown("---")
-
-    # ---------------- DÉCISION BANQUE ----------------
-
-    if credit_history == 0 or final_score > 70:
-
-        st.error("❌ CRÉDIT REFUSÉ")
-        st.warning("Risque bancaire trop élevé")
-
-    elif final_score > 45:
-
-        st.warning("⚠️ CRÉDIT ACCORDÉ SOUS CONDITIONS")
-        st.info("Taux d’intérêt recommandé élevé")
+        st.balloons()
 
     else:
 
-        st.success("✅ CRÉDIT ACCORDÉ")
-        st.balloons()
+        st.error(
+            "❌ Crédit refusé.\n\nLe profil du client présente un risque élevé."
+        )
 
-    # ---------------- DETAILS ----------------
-    with st.expander("📋 Voir les données analysées"):
+    # Afficher les données analysées
+
+    with st.expander("📋 Voir les informations analysées"):
+
         st.dataframe(donnees)
