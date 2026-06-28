@@ -2,45 +2,235 @@ import streamlit as st
 import pandas as pd
 import joblib
 
-# 1. Configuration du titre de la page
-st.set_page_config(page_title="Octroi de Crédit", layout="centered")
-st.title("🏦 Simulateur d'Octroi de Crédit Bancaire")
-st.write("Saisissez les informations du client pour prédire son éligibilité.")
+# -------------------------------------------------------
+# CONFIGURATION DE LA PAGE
+# -------------------------------------------------------
 
-# 2. Chargement sécurisé du modèle et du scaler
-@st.cache_resource # Évite de recharger le fichier à chaque clic
-def charger_fichiers():
+st.set_page_config(
+    page_title="Système d'Octroi de Crédit",
+    page_icon="🏦",
+    layout="wide"
+)
+
+# -------------------------------------------------------
+# STYLE CSS
+# -------------------------------------------------------
+
+st.markdown("""
+<style>
+
+.main {
+    background-color: #f8f9fa;
+}
+
+.title {
+    text-align: center;
+    color: #0A3D62;
+    font-size: 45px;
+    font-weight: bold;
+}
+
+.subtitle {
+    text-align: center;
+    color: gray;
+    font-size: 18px;
+}
+
+.stButton>button {
+    width: 100%;
+    background-color: #0A3D62;
+    color: white;
+    border-radius: 10px;
+    height: 55px;
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.stButton>button:hover {
+    background-color: #1B4F72;
+    color: white;
+}
+
+.result-box {
+    padding:20px;
+    border-radius:15px;
+    text-align:center;
+    font-size:25px;
+    font-weight:bold;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# -------------------------------------------------------
+# CHARGEMENT MODELE
+# -------------------------------------------------------
+
+@st.cache_resource
+def charger_modele():
     modele = joblib.load("random_forest_credit.pkl")
-    scaler = joblib.load("scaler_credit.pkl") # Supprimez si non utilisé
+    scaler = joblib.load("scaler_credit.pkl")
     return modele, scaler
 
 try:
-    model, scaler = charger_fichiers()
+    model, scaler = charger_modele()
+
 except Exception as e:
-    st.error(f"Erreur de chargement du modèle : {e}")
+    st.error(f"Erreur lors du chargement du modèle : {e}")
+    st.stop()
 
-# 3. Création des champs de saisie pour l'utilisateur
-st.subheader("Informations financières")
-revenu = st.number_input("Revenu mensuel du demandeur ($)", min_value=0, value=5000)
-montant = st.number_input("Montant du prêt demandé ($)", min_value=0, value=150)
+# -------------------------------------------------------
+# TITRE
+# -------------------------------------------------------
 
-# 4. Bouton de prédiction et calcul
-if st.button("Analyser le dossier"):
-    # Créer un DataFrame avec les mêmes noms de colonnes que l'entraînement
-    donnies_saisies = pd.DataFrame({
-        "ApplicantIncome": [revenu],
-        "LoanAmount": [montant]
+st.markdown(
+    '<p class="title">🏦 Système Intelligent d\'Octroi de Crédit</p>',
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    '<p class="subtitle">Prédiction automatique de l\'éligibilité d\'un client grâce au Machine Learning</p>',
+    unsafe_allow_html=True
+)
+
+st.markdown("---")
+
+# -------------------------------------------------------
+# FORMULAIRE
+# -------------------------------------------------------
+
+col1, col2 = st.columns(2)
+
+with col1:
+
+    st.subheader("👤 Informations Personnelles")
+
+    gender = st.selectbox(
+        "Sexe",
+        [0, 1],
+        format_func=lambda x: "Femme" if x == 0 else "Homme"
+    )
+
+    married = st.selectbox(
+        "Statut Matrimonial",
+        [0, 1],
+        format_func=lambda x: "Non Marié" if x == 0 else "Marié"
+    )
+
+    dependents = st.selectbox(
+        "Nombre de personnes à charge",
+        [0, 1, 2, 3]
+    )
+
+    education = st.selectbox(
+        "Niveau d'étude",
+        [0, 1],
+        format_func=lambda x: "Diplômé" if x == 0 else "Non Diplômé"
+    )
+
+    self_employed = st.selectbox(
+        "Travailleur Indépendant",
+        [0, 1],
+        format_func=lambda x: "Non" if x == 0 else "Oui"
+    )
+
+with col2:
+
+    st.subheader("💰 Informations Financières")
+
+    total_income = st.number_input(
+        "Revenu Mensuel Total ($)",
+        min_value=0,
+        value=5000
+    )
+
+    loan_amount = st.number_input(
+        "Montant du Prêt Demandé ($)",
+        min_value=0,
+        value=150
+    )
+
+    loan_term = st.number_input(
+        "Durée du Prêt (en mois)",
+        min_value=1,
+        value=360
+    )
+
+    credit_history = st.selectbox(
+        "Historique de Crédit",
+        [0, 1],
+        format_func=lambda x: "Mauvais" if x == 0 else "Bon"
+    )
+
+    property_area = st.selectbox(
+        "Zone de Résidence",
+        [0, 1, 2],
+        format_func=lambda x:
+            "Rural" if x == 0
+            else "Semi-Urbain" if x == 1
+            else "Urbain"
+    )
+
+st.markdown("---")
+
+# -------------------------------------------------------
+# PREDICTION
+# -------------------------------------------------------
+
+if st.button("🔍 Analyser le Dossier"):
+
+    donnees = pd.DataFrame({
+
+        'Gender': [gender],
+        'Married': [married],
+        'Dependents': [dependents],
+        'Education': [education],
+        'Self_Employed': [self_employed],
+        'LoanAmount': [loan_amount],
+        'Loan_Amount_Term': [loan_term],
+        'Credit_History': [credit_history],
+        'Property_Area': [property_area],
+        'Total_Income': [total_income]
+
     })
-    
-    # Appliquer le scaler si nécessaire
-    donnies_preparees = scaler.transform(donnies_saisies)
-    
-    # Prédire (0 ou 1)
-    prediction = model.predict(donnies_preparees)[0]
-    
-    # Affichage du résultat final
-    st.markdown("---")
+
+    # Normalisation
+
+    donnees_scaled = scaler.transform(donnees)
+
+    # Prédiction
+
+    prediction = model.predict(donnees_scaled)[0]
+
+    # Probabilité
+
+    proba = model.predict_proba(donnees_scaled)[0][1] * 100
+
+    st.markdown("## 📊 Résultat de l'analyse")
+
+    st.progress(int(proba))
+
+    st.metric(
+        label="Probabilité d'acceptation",
+        value=f"{proba:.2f}%"
+    )
+
     if prediction == 1:
-        st.success("🎉 **Favorable** : Le crédit est pré-approuvé.")
+
+        st.success(
+            "✅ Crédit approuvé.\n\nLe profil du client présente un risque faible."
+        )
+
+        st.balloons()
+
     else:
-        st.error("❌ **Défavorable** : Le risque est trop élevé pour accorder le prêt.")
+
+        st.error(
+            "❌ Crédit refusé.\n\nLe profil du client présente un risque élevé."
+        )
+
+    # Afficher les données analysées
+
+    with st.expander("📋 Voir les informations analysées"):
+
+        st.dataframe(donnees)
