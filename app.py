@@ -51,32 +51,28 @@ st.markdown("""
     color: white;
 }
 
-.result-box {
-    padding:20px;
-    border-radius:15px;
-    text-align:center;
-    font-size:25px;
-    font-weight:bold;
-}
-
 </style>
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------------
-# CHARGEMENT MODELE
+# CHARGEMENT DU MODELE
 # -------------------------------------------------------
 
 @st.cache_resource
 def charger_modele():
-    modele = joblib.load("random_forest_credit.pkl")
+
+    modele = joblib.load("modele_credit.pkl")
     scaler = joblib.load("scaler_credit.pkl")
-    return modele, scaler
+    colonnes_modele = joblib.load("colonnes_modele.pkl")
+
+    return modele, scaler, colonnes_modele
+
 
 try:
-    model, scaler = charger_modele()
+    model, scaler, colonnes_modele = charger_modele()
 
 except Exception as e:
-    st.error(f"Erreur lors du chargement du modèle : {e}")
+    st.error(f"Erreur lors du chargement des fichiers : {e}")
     st.stop()
 
 # -------------------------------------------------------
@@ -138,20 +134,26 @@ with col2:
 
     st.subheader("💰 Informations Financières")
 
-    total_income = st.number_input(
-        "Revenu Mensuel Total ($)",
+    applicant_income = st.number_input(
+        "Salaire du demandeur ($)",
         min_value=0,
         value=5000
     )
 
+    coapplicant_income = st.number_input(
+        "Salaire du co-demandeur ($)",
+        min_value=0,
+        value=0
+    )
+
     loan_amount = st.number_input(
-        "Montant du Prêt Demandé ($)",
+        "Montant du prêt demandé ($)",
         min_value=0,
         value=150
     )
 
     loan_term = st.number_input(
-        "Durée du Prêt (en mois)",
+        "Durée du prêt (mois)",
         min_value=1,
         value=360
     )
@@ -179,6 +181,14 @@ st.markdown("---")
 
 if st.button("🔍 Analyser le Dossier"):
 
+    # Variables calculées
+
+    total_income = applicant_income + coapplicant_income
+
+    loan_income_ratio = loan_amount / (total_income + 1)
+
+    # Création des données
+
     donnees = pd.DataFrame({
 
         'Gender': [gender],
@@ -186,51 +196,73 @@ if st.button("🔍 Analyser le Dossier"):
         'Dependents': [dependents],
         'Education': [education],
         'Self_Employed': [self_employed],
+
+        'ApplicantIncome': [applicant_income],
+        'CoapplicantIncome': [coapplicant_income],
+
         'LoanAmount': [loan_amount],
         'Loan_Amount_Term': [loan_term],
         'Credit_History': [credit_history],
         'Property_Area': [property_area],
-        'Total_Income': [total_income]
+
+        'Total_Income': [total_income],
+        'Loan_Income_Ratio': [loan_income_ratio]
 
     })
 
-    # Normalisation
+    # Ajouter automatiquement les colonnes manquantes
 
-    donnees_scaled = scaler.transform(donnees)
+    for col in colonnes_modele:
+        if col not in donnees.columns:
+            donnees[col] = 0
 
-    # Prédiction
+    # Respecter l'ordre exact utilisé pendant l'entraînement
 
-    prediction = model.predict(donnees_scaled)[0]
+    donnees = donnees[colonnes_modele]
 
-    # Probabilité
+    try:
 
-    proba = model.predict_proba(donnees_scaled)[0][1] * 100
+        # Normalisation
 
-    st.markdown("## 📊 Résultat de l'analyse")
+        donnees_scaled = scaler.transform(donnees)
 
-    st.progress(int(proba))
+        # Prédiction
 
-    st.metric(
-        label="Probabilité d'acceptation",
-        value=f"{proba:.2f}%"
-    )
+        prediction = model.predict(donnees_scaled)[0]
 
-    if prediction == 1:
+        # Probabilité
 
-        st.success(
-            "✅ Crédit approuvé.\n\nLe profil du client présente un risque faible."
+        proba = model.predict_proba(donnees_scaled)[0][1] * 100
+
+        st.markdown("## 📊 Résultat de l'Analyse")
+
+        st.progress(int(proba))
+
+        st.metric(
+            label="Probabilité d'acceptation",
+            value=f"{proba:.2f}%"
         )
 
-        st.balloons()
+        if prediction == 1:
 
-    else:
+            st.success(
+                "✅ Crédit approuvé.\n\nLe profil du client présente un risque faible."
+            )
 
-        st.error(
-            "❌ Crédit refusé.\n\nLe profil du client présente un risque élevé."
-        )
+            st.balloons()
 
-    # Afficher les données analysées
+        else:
 
-    with st.expander("📋 Voir les informations analysées"):
+            st.error(
+                "❌ Crédit refusé.\n\nLe profil du client présente un risque élevé."
+            )
 
-        st.dataframe(donnees)
+        # Affichage des données
+
+        with st.expander("📋 Informations analysées"):
+
+            st.dataframe(donnees)
+
+    except Exception as e:
+
+        st.error(f"Erreur lors de la prédiction : {e}")
